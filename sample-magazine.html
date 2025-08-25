@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechVision Magazine - Issue #42</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            background: #000;
+        }
+
+        /* Force landscape orientation preference */
+        @media screen and (orientation: portrait) {
+            body::before {
+                content: "For best experience, please rotate to landscape";
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: white;
+                font-size: 1.2rem;
+                z-index: 1000;
+                background: rgba(0,0,0,0.8);
+                padding: 20px;
+                border-radius: 10px;
+            }
+        }
+
+        .magazine-container {
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .section {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform: translateY(100vh);
+        }
+
+        .section.active {
+            transform: translateY(0);
+        }
+
+        .section.prev {
+            transform: translateY(-100vh);
+        }
+
+        .page {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform: translateX(100%);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        .page.active {
+            transform: translateX(0);
+        }
+
+        .page.prev {
+            transform: translateX(-100%);
+        }
+
+        .page-content {
+            position: relative;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            background: rgba(0,0,0,0.4);
+        }
+
+        .cover-page {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .cover-title {
+            font-size: 4rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .cover-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .cover-issue {
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .tech-bg {
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                        radial-gradient(circle at 20% 50%, #00d4ff 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, #ff0080 0%, transparent 50%),
+                        radial-gradient(circle at 40% 80%, #8000ff 0%, transparent 50%),
+                        #1a1a2e;
+        }
+
+        .ai-bg {
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+                        conic-gradient(from 0deg at 50% 50%, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57, #ff6b6b);
+        }
+
+        .startup-bg {
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)),
+                        linear-gradient(45deg, #ff9a9e 0%, #fecfef 50%, #fecfef 100%);
+        }
+
+        .future-bg {
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+                        linear-gradient(180deg, #a8edea 0%, #fed6e3 100%);
+        }
+
+        .article-title {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 30px;
+            text-align: center;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        }
+
+        .article-content {
+            font-size: 1.2rem;
+            line-height: 1.8;
+            max-width: 800px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            text-align: justify;
+        }
+
+        .navigation-hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        .section-indicator {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .section-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transition: background 0.3s ease;
+        }
+
+        .section-dot.active {
+            background: rgba(255,255,255,0.9);
+        }
+
+        .page-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .page-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transition: background 0.3s ease;
+        }
+
+        .page-dot.active {
+            background: rgba(255,255,255,0.9);
+        }
+
+        /* Screen reader only content */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="magazine-container">
+        <!-- Section Indicators -->
+        <div class="section-indicator">
+            <div class="section-dot active" data-section="0"></div>
+            <div class="section-dot" data-section="1"></div>
+            <div class="section-dot" data-section="2"></div>
+            <div class="section-dot" data-section="3"></div>
+        </div>
+
+        <!-- Cover Section -->
+        <section class="section active" data-section="0">
+            <div class="page active cover-page">
+                <div class="page-content">
+                    <h1 class="cover-title">TechVision</h1>
+                    <p class="cover-subtitle">The Future of Technology Today</p>
+                    <p class="cover-issue">Issue #42 • Winter 2024</p>
+                    <div class="sr-only">Cover page featuring a modern technology magazine design with gradient background</div>
+                </div>
+                <div class="navigation-hint">
+                    Swipe ↕ for sections<br>
+                    Swipe ← → for pages
+                </div>
+            </div>
+            <div class="page-indicator">
+                <div class="page-dot active"></div>
+            </div>
+        </section>
+
+        <!-- AI Revolution Section -->
+        <section class="section" data-section="1">
+            <div class="page active ai-bg">
+                <div class="page-content">
+                    <h2 class="article-title">The AI Revolution</h2>
+                    <div class="article-content">
+                        <p>Artificial Intelligence is reshaping every aspect of our digital lives. From autonomous vehicles navigating city streets to AI assistants helping us manage our daily tasks, the revolution is already here.</p>
+                        <br>
+                        <p>Machine learning algorithms are becoming more sophisticated, enabling breakthrough applications in healthcare, finance, and creative industries. The question is no longer whether AI will transform our world, but how quickly we can adapt to these changes.</p>
+                    </div>
+                    <div class="sr-only">Background featuring colorful AI-inspired geometric patterns and neural network visualizations</div>
+                </div>
+            </div>
+            <div class="page tech-bg">
+                <div class="page-content">
+                    <h2 class="article-title">Neural Networks Explained</h2>
+                    <div class="article-content">
+                        <p>Deep learning networks mimic the human brain's structure, processing information through interconnected layers of artificial neurons. Each layer extracts increasingly complex features from input data.</p>
+                        <br>
+                        <p>These networks excel at pattern recognition, enabling computers to understand images, process natural language, and make predictions with remarkable accuracy. The key breakthrough came from training these networks on massive datasets.</p>
+                    </div>
+                    <div class="sr-only">Background showing abstract technological patterns with blue and purple gradients representing data flow</div>
+                </div>
+            </div>
+            <div class="page-indicator">
+                <div class="page-dot active"></div>
+                <div class="page-dot"></div>
+            </div>
+        </section>
+
+        <!-- Startup Spotlight Section -->
+        <section class="section" data-section="2">
+            <div class="page active startup-bg">
+                <div class="page-content">
+                    <h2 class="article-title">Startup Spotlight</h2>
+                    <div class="article-content">
+                        <p>This month we feature three groundbreaking startups that are pushing the boundaries of innovation. From quantum computing to sustainable energy solutions, these companies represent the next wave of technological advancement.</p>
+                        <br>
+                        <p>QuantumLeap Technologies is developing accessible quantum computers for small businesses. Their breakthrough approach reduces the complexity and cost of quantum systems by 90%.</p>
+                    </div>
+                    <div class="sr-only">Background with soft pink and purple gradients representing innovation and creativity in the startup ecosystem</div>
+                </div>
+            </div>
+            <div class="page startup-bg">
+                <div class="page-content">
+                    <h2 class="article-title">Green Tech Rising</h2>
+                    <div class="article-content">
+                        <p>EcoFlow Dynamics has created revolutionary solar panels that are 40% more efficient than traditional models. Their transparent solar cells can be integrated into windows and building facades.</p>
+                        <br>
+                        <p>Meanwhile, BioPlastic Solutions is transforming agricultural waste into biodegradable packaging materials, offering a sustainable alternative to traditional plastics that decompose within 90 days.</p>
+                    </div>
+                    <div class="sr-only">Background continuing the startup theme with warm gradients symbolizing growth and environmental consciousness</div>
+                </div>
+            </div>
+            <div class="page-indicator">
+                <div class="page-dot active"></div>
+                <div class="page-dot"></div>
+            </div>
+        </section>
+
+        <!-- Future Tech Section -->
+        <section class="section" data-section="3">
+            <div class="page active future-bg">
+                <div class="page-content">
+                    <h2 class="article-title">2030 Vision</h2>
+                    <div class="article-content">
+                        <p>Looking ahead to 2030, we envision a world where technology seamlessly integrates with human experience. Brain-computer interfaces will enable direct thought-to-digital communication.</p>
+                        <br>
+                        <p>Augmented reality will overlay digital information onto our physical world, creating immersive experiences that enhance education, entertainment, and productivity. The boundary between digital and physical reality will blur.</p>
+                    </div>
+                    <div class="sr-only">Background featuring futuristic gradients from teal to pink representing the merging of digital and physical worlds</div>
+                </div>
+            </div>
+            <div class="page future-bg">
+                <div class="page-content">
+                    <h2 class="article-title">Space Technology</h2>
+                    <div class="article-content">
+                        <p>Commercial space travel will become routine, with orbital hotels and lunar research stations. Advanced propulsion systems will reduce travel time to Mars from 9 months to just 3 months.</p>
+                        <br>
+                        <p>Space-based solar power stations will beam clean energy back to Earth, providing unlimited renewable power. This technology could solve the global energy crisis and reduce our dependence on fossil fuels.</p>
+                    </div>
+                    <div class="sr-only">Background with cosmic-inspired gradients representing the infinite possibilities of space exploration and technology</div>
+                </div>
+            </div>
+            <div class="page-indicator">
+                <div class="page-dot active"></div>
+                <div class="page-dot"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        class MagazineNavigator {
+            constructor() {
+                this.currentSection = 0;
+                this.currentPage = 0;
+                this.sections = document.querySelectorAll('.section');
+                this.totalSections = this.sections.length;
+                this.touchStartX = 0;
+                this.touchStartY = 0;
+                this.touchEndX = 0;
+                this.touchEndY = 0;
+                this.minSwipeDistance = 50;
+                
+                this.init();
+            }
+
+            init() {
+                this.addEventListeners();
+                this.updateIndicators();
+            }
+
+            addEventListeners() {
+                // Touch events for mobile
+                document.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                document.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+                
+                // Keyboard events for accessibility
+                document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                
+                // Click events for indicators
+                document.querySelectorAll('.section-dot').forEach((dot, index) => {
+                    dot.addEventListener('click', () => this.goToSection(index));
+                });
+            }
+
+            handleTouchStart(e) {
+                this.touchStartX = e.changedTouches[0].screenX;
+                this.touchStartY = e.changedTouches[0].screenY;
+            }
+
+            handleTouchEnd(e) {
+                this.touchEndX = e.changedTouches[0].screenX;
+                this.touchEndY = e.changedTouches[0].screenY;
+                this.handleSwipe();
+            }
+
+            handleSwipe() {
+                const deltaX = this.touchEndX - this.touchStartX;
+                const deltaY = this.touchEndY - this.touchStartY;
+                const absDeltaX = Math.abs(deltaX);
+                const absDeltaY = Math.abs(deltaY);
+
+                if (Math.max(absDeltaX, absDeltaY) < this.minSwipeDistance) return;
+
+                if (absDeltaY > absDeltaX) {
+                    // Vertical swipe - change sections
+                    if (deltaY < 0) {
+                        this.nextSection();
+                    } else {
+                        this.prevSection();
+                    }
+                } else {
+                    // Horizontal swipe - change pages within section
+                    if (deltaX < 0) {
+                        this.nextPage();
+                    } else {
+                        this.prevPage();
+                    }
+                }
+            }
+
+            handleKeyDown(e) {
+                switch(e.key) {
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.prevSection();
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.nextSection();
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        this.prevPage();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        this.nextPage();
+                        break;
+                }
+            }
+
+            nextSection() {
+                if (this.currentSection < this.totalSections - 1) {
+                    this.goToSection(this.currentSection + 1);
+                }
+            }
+
+            prevSection() {
+                if (this.currentSection > 0) {
+                    this.goToSection(this.currentSection - 1);
+                }
+            }
+
+            goToSection(sectionIndex) {
+                if (sectionIndex >= 0 && sectionIndex < this.totalSections) {
+                    const oldSection = this.currentSection;
+                    
+                    // Update all section classes
+                    this.sections.forEach((section, index) => {
+                        section.classList.remove('active', 'prev');
+                        if (index === sectionIndex) {
+                            section.classList.add('active');
+                        } else if (index < sectionIndex) {
+                            section.classList.add('prev');
+                        }
+                    });
+                    
+                    // Update current section and reset page
+                    this.currentSection = sectionIndex;
+                    this.currentPage = 0;
+                    
+                    this.updateIndicators();
+                    this.updatePages();
+                }
+            }
+
+            nextPage() {
+                const currentSectionElement = this.sections[this.currentSection];
+                const pages = currentSectionElement.querySelectorAll('.page');
+                
+                if (this.currentPage < pages.length - 1) {
+                    this.goToPage(this.currentPage + 1);
+                }
+            }
+
+            prevPage() {
+                if (this.currentPage > 0) {
+                    this.goToPage(this.currentPage - 1);
+                }
+            }
+
+            goToPage(pageIndex) {
+                const currentSectionElement = this.sections[this.currentSection];
+                const pages = currentSectionElement.querySelectorAll('.page');
+                
+                if (pageIndex >= 0 && pageIndex < pages.length) {
+                    // Update all page classes for smooth sliding
+                    pages.forEach((page, index) => {
+                        page.classList.remove('active', 'prev');
+                        if (index === pageIndex) {
+                            page.classList.add('active');
+                        } else if (index < pageIndex) {
+                            page.classList.add('prev');
+                        }
+                    });
+                    
+                    this.currentPage = pageIndex;
+                    this.updatePageIndicators();
+                }
+            }
+
+            updatePages() {
+                const currentSectionElement = this.sections[this.currentSection];
+                const pages = currentSectionElement.querySelectorAll('.page');
+                
+                pages.forEach((page, index) => {
+                    page.classList.remove('active', 'prev');
+                    if (index === this.currentPage) {
+                        page.classList.add('active');
+                    } else if (index < this.currentPage) {
+                        page.classList.add('prev');
+                    }
+                });
+                
+                this.updatePageIndicators();
+            }
+
+            updateIndicators() {
+                // Update section indicators
+                document.querySelectorAll('.section-dot').forEach((dot, index) => {
+                    if (index === this.currentSection) {
+                        dot.classList.add('active');
+                    } else {
+                        dot.classList.remove('active');
+                    }
+                });
+            }
+
+            updatePageIndicators() {
+                const currentSectionElement = this.sections[this.currentSection];
+                const pageIndicator = currentSectionElement.querySelector('.page-indicator');
+                
+                if (pageIndicator) {
+                    const pageDots = pageIndicator.querySelectorAll('.page-dot');
+                    pageDots.forEach((dot, index) => {
+                        if (index === this.currentPage) {
+                            dot.classList.add('active');
+                        } else {
+                            dot.classList.remove('active');
+                        }
+                    });
+                }
+            }
+        }
+
+        // Initialize the magazine navigator when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new MagazineNavigator();
+        });
+    </script>
+</body>
+</html>
