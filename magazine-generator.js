@@ -17,6 +17,9 @@ class MagazineGenerator {
         html = html.replace(/\{\{TITLE\}\}/g, title);
         html = html.replace(/\{\{SUBTITLE\}\}/g, subtitle);
         html = html.replace(/\{\{ISSUE\}\}/g, issue);
+        // Replace layout class placeholder
+        const layoutClass = `layout-${this.normalizeLayout(config.layout)}`;
+        html = html.replace('{{LAYOUT_CLASS}}', layoutClass);
         
         // Generate section indicators (include cover page as section 0)
         const totalSections = sections.length + 1; // +1 for cover page
@@ -116,6 +119,132 @@ self.addEventListener('fetch', event => {
             })
     );
 });`;
+    }
+
+    /* ---------------- Markdown ingestion ---------------- */
+    normalizeLayout(layout) {
+        const allowed = new Set(['classic', 'split', 'minimal']);
+        const val = String(layout || 'classic').toLowerCase();
+        return allowed.has(val) ? val : 'classic';
+    }
+
+    buildConfigFromMarkdown(mdFiles, options = {}) {
+        // options can include: title, subtitle, issue, filename, layout, section
+        const sectionsMap = new Map(); // preserve insertion order
+
+        const readSource = (srcPath) => {
+            if (srcPath === '-' || srcPath === '/dev/stdin') {
+                // Read from stdin synchronously
+                try {
+                    return fs.readFileSync(0, 'utf8');
+                } catch (e) {
+                    throw new Error('Failed to read from stdin');
+                }
+            }
+            return fs.readFileSync(srcPath, 'utf8');
+        };
+
+        const ensureSection = (name) => {
+            const key = (name && String(name).trim()) || 'Articles';
+            if (!sectionsMap.has(key)) sectionsMap.set(key, { pages: [] });
+            return key;
+        };
+
+        mdFiles.forEach((filePath) => {
+            const raw = readSource(filePath);
+            const { fm, body } = this.parseFrontMatter(raw);
+            const fallback = filePath ? path.basename(filePath, path.extname(filePath)) : 'Untitled';
+            const { title, paragraphs } = this.parseMarkdownBody(body, fallback);
+
+            const page = {
+                title: (fm.title || title || 'Untitled').trim(),
+                backgroundClass: (fm.backgroundClass || '').trim(),
+                content: paragraphs,
+                altText: (fm.altText || '').trim()
+            };
+
+            const sectionName = (fm.section || options.section || 'Articles').trim();
+            const key = ensureSection(sectionName);
+            sectionsMap.get(key).pages.push(page);
+        });
+
+        const sections = Array.from(sectionsMap.entries()).map(([_, val]) => val);
+        if (sections.length === 0 || sections.every(s => !s.pages || s.pages.length === 0)) {
+            throw new Error('No pages found from Markdown input. Ensure files are not empty and contain content.');
+        }
+
+        return {
+            title: options.title || 'My Magazine',
+            subtitle: options.subtitle || '',
+            issue: options.issue || '',
+            filename: options.filename || 'magazine.html',
+            layout: this.normalizeLayout(options.layout),
+            sections
+        };
+    }
+
+    parseFrontMatter(src) {
+        if (src.startsWith('---')) {
+            const end = src.indexOf('\n---', 3);
+            if (end !== -1) {
+                const fmText = src.slice(3, end).trim();
+                const body = src.slice(end + 4).replace(/^\n/, '');
+                const fm = {};
+                fmText.split('\n').forEach(line => {
+                    const m = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+                    if (m) {
+                        const k = m[1].trim();
+                        let v = m[2].trim();
+                        v = v.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1');
+                        fm[k] = v;
+                    }
+                });
+                return { fm, body };
+            }
+        }
+        return { fm: {}, body: src };
+    }
+
+    parseMarkdownBody(body, fallbackTitle = 'Untitled') {
+        const lines = body.split(/\r?\n/);
+        let title = '';
+        const contentLines = [];
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (!title && /^#{1,6}\s+/.test(line)) {
+                title = line.replace(/^#{1,6}\s+/, '').trim();
+                continue;
+            }
+            contentLines.push(line);
+        }
+        if (!title) title = fallbackTitle;
+
+        // Split into blocks by blank lines
+        const rawBlocks = contentLines.join('\n').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+
+        const paragraphs = rawBlocks.map(block => {
+            // Detect list blocks and convert to line-broken list inside paragraph
+            const isList = /^(?:[-*+]\s+|\d+\.\s+)/m.test(block);
+            if (isList) {
+                const listLines = block.split(/\n/).map(l => l.replace(/^[-*+]\s+/, '• ').replace(/^(\d+)\.\s+/, '$1) '));
+                return this.mdInlineToHTML(listLines.join('<br>'));
+            }
+            // Regular paragraph
+            const cleaned = block.replace(/^#{1,6}\s+/g, '');
+            return this.mdInlineToHTML(cleaned);
+        });
+
+        return { title, paragraphs };
+    }
+
+    mdInlineToHTML(text) {
+        // Basic inline markdown replacements: bold, italics, code, links
+        let out = text;
+        out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
+        out = out.replace(/\*(.+?)\*/g, '<em>$1<\/em>');
+        out = out.replace(/`([^`]+)`/g, '<code>$1<\/code>');
+        out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+        return out;
     }
 
     build(config, outputDir = './output') {
@@ -391,9 +520,45 @@ self.addEventListener('fetch', event => {
             background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)),
                         linear-gradient(45deg, #ff9a56 0%, #ff6b95 100%);
         }
+        /* Layout variants */
+        .layout-split .page-content {
+            background: linear-gradient(90deg, rgba(0,0,0,0.65) 45%, rgba(0,0,0,0) 100%);
+            align-items: flex-start;
+            justify-content: center;
+            text-align: left;
+            padding: 60px;
+        }
+        .layout-split .article-title {
+            text-align: left;
+            margin-left: 0;
+        }
+        .layout-split .article-content {
+            max-width: 600px;
+            text-align: left;
+        }
+
+        .layout-minimal .page-content {
+            background: none;
+        }
+        .layout-minimal .article-title {
+            position: absolute;
+            bottom: 60px;
+            left: 60px;
+            text-align: left;
+        }
+        .layout-minimal .article-content {
+            position: absolute;
+            bottom: 20px;
+            left: 60px;
+            max-width: 700px;
+            background: rgba(0,0,0,0.35);
+            padding: 16px 20px;
+            border-radius: 8px;
+            text-align: left;
+        }
     </style>
 </head>
-<body>
+<body class="{{LAYOUT_CLASS}}">
     <div class="magazine-container">
         <div class="section-indicator">
             {{SECTION_INDICATORS}}
@@ -626,18 +791,68 @@ module.exports = MagazineGenerator;
 
 // CLI usage
 if (require.main === module) {
-    const configFile = process.argv[2];
-    if (!configFile) {
-        console.log('Usage: node magazine-generator.js <config.json>');
+    const args = process.argv.slice(2);
+
+    const showUsage = () => {
+        console.log(`Usage:\n\n  From JSON config:\n    node magazine-generator.js <config.json>\n\n  From Markdown files:\n    node magazine-generator.js --md <file1.md> [file2.md ...] [--title "Title"] [--subtitle "Sub"] [--issue "Issue"] [--layout classic|split|minimal] [--section "Section Name"] [--filename out.html] [--outdir ./output]\n\n  From stdin (single Markdown):\n    cat article.md | node magazine-generator.js --md - --title "Title" --layout split\n`);
+    };
+
+    if (args.length === 0) {
+        showUsage();
         process.exit(1);
     }
 
-    try {
-        const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-        const generator = new MagazineGenerator();
-        generator.build(config);
-    } catch (error) {
-        console.error('Error:', error.message);
-        process.exit(1);
+    // JSON mode
+    if (args[0] !== '--md' && /\.json$/i.test(args[0])) {
+        try {
+            const config = JSON.parse(fs.readFileSync(args[0], 'utf8'));
+            const generator = new MagazineGenerator();
+            generator.build(config);
+        } catch (error) {
+            console.error('Error:', error.message);
+            process.exit(1);
+        }
+        process.exit(0);
     }
+
+    // Markdown mode
+    if (args[0] === '--md') {
+        const opts = {};
+        const mdFiles = [];
+        let outdir = './output';
+        for (let i = 1; i < args.length; i++) {
+            const a = args[i];
+            if (a === '--title') { opts.title = String(args[++i] || ''); continue; }
+            if (a === '--subtitle') { opts.subtitle = String(args[++i] || ''); continue; }
+            if (a === '--issue') { opts.issue = String(args[++i] || ''); continue; }
+            if (a === '--layout') { opts.layout = String(args[++i] || 'classic'); continue; }
+            if (a === '--section') { opts.section = String(args[++i] || ''); continue; }
+            if (a === '--filename') { opts.filename = String(args[++i] || 'magazine.html'); continue; }
+            if (a === '--outdir') { outdir = String(args[++i] || './output'); continue; }
+            if (a.startsWith('--')) {
+                console.warn(`Unknown option: ${a}`);
+                continue;
+            }
+            mdFiles.push(a);
+        }
+
+        if (mdFiles.length === 0) {
+            console.error('No Markdown files provided. Pass one or more files, or "-" to read from stdin.');
+            showUsage();
+            process.exit(1);
+        }
+
+        try {
+            const generator = new MagazineGenerator();
+            const config = generator.buildConfigFromMarkdown(mdFiles, opts);
+            generator.build(config, outdir);
+        } catch (error) {
+            console.error('Error:', error.message);
+            process.exit(1);
+        }
+        process.exit(0);
+    }
+
+    showUsage();
+    process.exit(1);
 }

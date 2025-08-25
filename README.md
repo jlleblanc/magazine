@@ -100,8 +100,20 @@ output/
 ## Example Usage
 
 ```bash
-# Generate from config
+# Generate from config (JSON)
 node magazine-generator.js example-config.json
+
+# Generate from Markdown files
+node magazine-generator.js --md article1.md article2.md \
+  --title "Your Magazine" \
+  --subtitle "Your Subtitle" \
+  --issue "Issue #1 • 2025" \
+  --layout split \
+  --filename magazine.html \
+  --outdir ./output
+
+# Read a single Markdown article from stdin
+cat article.md | node magazine-generator.js --md - --title "Your Magazine" --layout minimal
 
 # Output will be in ./output/ directory
 ```
@@ -118,3 +130,57 @@ node magazine-generator.js example-config.json
 - Touch gestures on iOS/Android
 - Keyboard navigation for accessibility
 - PWA installation on supported devices
+
+## Markdown Input
+
+You can build a magazine directly from Markdown files. Each Markdown file becomes a page. You can group pages into sections via frontmatter or a global `--section` flag.
+
+### Supported frontmatter (optional)
+
+```
+---
+title: Neural Networks Explained
+section: Features
+backgroundClass: ai-bg
+altText: Abstract AI-inspired background with vibrant gradients
+---
+```
+
+### Markdown body
+
+```
+# Neural Networks Explained
+
+Deep learning uses **layers** of computation. It supports *pattern recognition*, `code`, and [links](https://example.com).
+
+- Bullet one
+- Bullet two
+```
+
+Notes:
+- The first `# Heading` becomes the page title if not provided in frontmatter.
+- Basic inline Markdown supported: bold (`**text**`), italics (`*text*`), inline code (`` `code` ``), links (`[text](url)`).
+- Lists are rendered as bullet lines within the paragraph.
+
+## Layout Options
+
+Choose a layout globally via JSON `layout` or CLI `--layout`:
+
+- `classic` (default): Centered content with translucent backdrop.
+- `split`: Left-aligned content with a side gradient overlay.
+- `minimal`: No backdrop; title and content positioned near the bottom-left.
+
+Examples:
+
+```json
+{
+  "title": "Your Magazine",
+  "issue": "Issue #1",
+  "layout": "split",
+  "sections": [ ... ]
+}
+```
+
+```bash
+node magazine-generator.js --md article.md --title "Your Magazine" --layout minimal
+```
